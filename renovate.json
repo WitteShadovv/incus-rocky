@@ -1,0 +1,61 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests",
+    ":enablePreCommit",
+    ":semanticCommitsDisabled"
+  ],
+  "labels": ["dependencies"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Incus LTS version in incus.spec (Version: tag)",
+      "managerFilePatterns": ["/(^|/)incus\\.spec$/"],
+      "matchStrings": ["(?:^|\\n)Version:[ \\t]+(?<currentValue>\\S+)"],
+      "depNameTemplate": "incus",
+      "packageNameTemplate": "lxc/incus",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>\\d+\\.\\d+\\.\\d+)$",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "pre-commit version pinned in workflow run: lines",
+      "managerFilePatterns": ["/^\\.github/workflows/[^/]+\\.ya?ml$/"],
+      "matchStrings": ["pipx run pre-commit==(?<currentValue>\\d+\\.\\d+\\.\\d+)"],
+      "depNameTemplate": "pre-commit",
+      "datasourceTemplate": "pypi"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Stay on the Incus 7.0 LTS branch; ignore feature releases (7.1, 7.2, ...)",
+      "matchManagers": ["custom.regex"],
+      "matchPackageNames": ["lxc/incus"],
+      "allowedVersions": "/^7\\.0\\.\\d+$/",
+      "minimumReleaseAge": "2 days",
+      "commitMessageTopic": "Incus LTS",
+      "commitMessageExtra": "to {{newVersion}}",
+      "labels": ["dependencies", "incus-lts"]
+    },
+    {
+      "description": "Group CI tooling bumps into Monday PRs (majors separately), kept out of the RPM changelog (rpmautospec)",
+      "matchFileNames": [".github/workflows/**", ".pre-commit-config.yaml"],
+      "groupName": "CI tooling",
+      "schedule": ["* * * * 1"],
+      "commitBody": "[skip changelog]"
+    },
+    {
+      "description": "shellcheck-py tags are vX.Y.Z.N[-R], which the default versioning treats as unstable and never updates",
+      "matchPackageNames": ["shellcheck-py/shellcheck-py"],
+      "versioning": "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\.(?<build>\\d+)(?:-(?<revision>\\d+))?$"
+    },
+    {
+      "description": "Runner labels (the matrix ones are invisible to Renovate) and the EL10 container change major version by hand",
+      "matchDatasources": ["docker", "github-runners"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    }
+  ]
+}

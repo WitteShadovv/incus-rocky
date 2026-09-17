@@ -1,0 +1,39 @@
+From 4dc6e1f7935ac13bcff98f6aa213e02815d0dcc8 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?St=C3=A9phane=20Graber?= <stgraber@stgraber.org>
+Date: Fri, 24 Jul 2026 00:04:23 -0400
+Subject: [PATCH] incusd/storage/s3: Reject symlinks in bucket backups
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Symlinks aren't a thing in S3, so reject them immediately.
+
+Signed-off-by: Stéphane Graber <stgraber@stgraber.org>
+---
+ internal/server/storage/s3/transfer_manager.go | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/internal/server/storage/s3/transfer_manager.go b/internal/server/storage/s3/transfer_manager.go
+index b2f65f48fdd..320d6b1139b 100644
+--- a/internal/server/storage/s3/transfer_manager.go
++++ b/internal/server/storage/s3/transfer_manager.go
+@@ -1,6 +1,7 @@
+ package s3
+ 
+ import (
++	"archive/tar"
+ 	"bytes"
+ 	"context"
+ 	"crypto/x509"
+@@ -164,6 +165,11 @@ func (t TransferManager) UploadAllFiles(bucketName string, srcData io.ReadSeeker
+ 			continue
+ 		}
+ 
++		// Buckets are plain object stores with no use for links; reject them.
++		if hdr.Typeflag == tar.TypeSymlink || hdr.Typeflag == tar.TypeLink {
++			return fmt.Errorf("Bucket backup contains disallowed link %q", hdr.Name)
++		}
++
+ 		fileName := strings.TrimPrefix(hdr.Name, "backup/bucket/")
+ 
+ 		_, err = uploader.UploadObject(ctx, &transfermanager.UploadObjectInput{

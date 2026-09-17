@@ -1,0 +1,63 @@
+From 1ef9eec16e4fe950bedee88ecc0e6100b8cf945f Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?St=C3=A9phane=20Graber?= <stgraber@stgraber.org>
+Date: Thu, 3 Sep 2026 17:37:10 -0400
+Subject: [PATCH] incusd: Don't close a nil pipe reader on backup failure
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: Stéphane Graber <stgraber@stgraber.org>
+---
+ cmd/incusd/instance_backup.go        | 5 ++++-
+ cmd/incusd/storage_buckets_backup.go | 5 ++++-
+ cmd/incusd/storage_volumes_backup.go | 5 ++++-
+ 3 files changed, 12 insertions(+), 3 deletions(-)
+
+diff --git a/cmd/incusd/instance_backup.go b/cmd/incusd/instance_backup.go
+index 7b6b1cdbde5..2d9f94d42c2 100644
+--- a/cmd/incusd/instance_backup.go
++++ b/cmd/incusd/instance_backup.go
+@@ -410,7 +410,10 @@ func instanceBackupsPost(d *Daemon, r *http.Request) response.Response {
+ 			// In order to actually fail piped exports, we use a dirty trick where we close the reader.
+ 			// This doesn't provide a clean error message in the case of direct backups, but it is a
+ 			// convenient tradeoff ensuring that the client reports an error.
+-			_ = reader.Close()
++			if reader != nil {
++				_ = reader.Close()
++			}
++
+ 			return err
+ 		}
+ 
+diff --git a/cmd/incusd/storage_buckets_backup.go b/cmd/incusd/storage_buckets_backup.go
+index faba8a2854e..fa2284e48ef 100644
+--- a/cmd/incusd/storage_buckets_backup.go
++++ b/cmd/incusd/storage_buckets_backup.go
+@@ -483,7 +483,10 @@ func storagePoolBucketBackupsPost(d *Daemon, r *http.Request) response.Response
+ 			// In order to actually fail piped exports, we use a dirty trick where we close the reader.
+ 			// This doesn't provide a clean error message in the case of direct backups, but it is a
+ 			// convenient tradeoff ensuring that the client reports an error.
+-			_ = reader.Close()
++			if reader != nil {
++				_ = reader.Close()
++			}
++
+ 			return err
+ 		}
+ 
+diff --git a/cmd/incusd/storage_volumes_backup.go b/cmd/incusd/storage_volumes_backup.go
+index fd29949c472..f50beba3dc0 100644
+--- a/cmd/incusd/storage_volumes_backup.go
++++ b/cmd/incusd/storage_volumes_backup.go
+@@ -562,7 +562,10 @@ func storagePoolVolumeTypeCustomBackupsPost(d *Daemon, r *http.Request) response
+ 			// In order to actually fail piped exports, we use a dirty trick where we close the reader.
+ 			// This doesn't provide a clean error message in the case of direct backups, but it is a
+ 			// convenient tradeoff ensuring that the client reports an error.
+-			_ = reader.Close()
++			if reader != nil {
++				_ = reader.Close()
++			}
++
+ 			return err
+ 		}
+ 

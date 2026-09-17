@@ -1,0 +1,79 @@
+# go_vendor_license config behind the License: tag (see MAINTAINING.md).
+
+[licensing]
+detector = "askalono"
+# doc/ (Markdown sources and prebuilt HTML with the furo theme) is neither compiled nor shipped
+exclude_directories = ["doc"]
+
+# License files askalono cannot classify
+[[licensing.licenses]]
+path = "vendor/raft/LICENSE"
+sha256sum = "79d77bb9421aea2a322bd8b7e096a7efddec595fadfbcc484f951bee8063328f"
+expression = "LGPL-3.0-only WITH LGPL-3.0-linking-exception"
+
+[[licensing.licenses]]
+path = "vendor/cowsql/LICENSE"
+sha256sum = "e5095dec132e87ca6efe00b70279a43b8aca8226ae7f57b9fe86d7350802520e"
+expression = "LGPL-3.0-only WITH LGPL-3.0-linking-exception"
+
+[[licensing.licenses]]
+path = "vendor/github.com/shirou/gopsutil/v4/LICENSE"
+sha256sum = "ad1e64b82c04fb2ee6bfe521bff01266971ffaa70500024d4ac767c6033aafb9"
+expression = "BSD-3-Clause"
+
+[[licensing.licenses]]
+path = "vendor/gopkg.in/yaml.v3/LICENSE"
+sha256sum = "d18f6323b71b0b768bb5e9616e36da390fbd39369a81807cca352de4e4e6aa0b"
+expression = "MIT AND Apache-2.0"
+
+[[licensing.licenses]]
+path = "vendor/go.yaml.in/yaml/v3/LICENSE"
+sha256sum = "d18f6323b71b0b768bb5e9616e36da390fbd39369a81807cca352de4e4e6aa0b"
+expression = "MIT AND Apache-2.0"
+
+[[licensing.licenses]]
+path = "vendor/github.com/miekg/dns/COPYRIGHT"
+sha256sum = "66550c0ad5ca7ec1e08683e5f872cc45c741f311eee3b8ee484206ecbf9c740d"
+expression = "BSD-3-Clause"
+
+[[licensing.licenses]]
+path = "vendor/moul.io/http2curl/v2/COPYRIGHT"
+sha256sum = "d05838dda4db5364992305df1d441704bb668108c2dda4c7e79f2bce4db1a39a"
+expression = "Apache-2.0 OR MIT"
+
+# github.com/rootless-containers/proto/go-proto has no license file; Apache-2.0 per its source header
+[[licensing.licenses]]
+path = "vendor/github.com/rootless-containers/proto/go-proto/rootlesscontainers.pb.go"
+sha256sum = "023e4d6b705cc09f3c74d106889e60418bf0c05a5356dd2d3b16687f32bfb9e5"
+expression = "Apache-2.0"
+
+# In-tree files compiled into the binaries under a license other than COPYING (Apache-2.0)
+[[licensing.licenses]]
+path = "shared/cgo/compiler.h"
+sha256sum = "3c163ea48421c453e981f8304aeb7ebdc5ff65888c268c1ec4485f2f967a3e47"
+expression = "LGPL-2.1-or-later"
+
+[[licensing.licenses]]
+path = "shared/cgo/macro.h"
+sha256sum = "9a56030dd5f6d8943cad5509cdb70f6ed15a5429521532a421ebb7746710fb84"
+expression = "LGPL-2.1-or-later"
+
+[[licensing.licenses]]
+path = "shared/cgo/incus_posix_acl_xattr.h"
+sha256sum = "79a2903236a9ffd32702e6879e48e219556b860486119145561f64c591f87e96"
+expression = "LGPL-2.1-or-later WITH Linux-syscall-note"
+
+[[licensing.licenses]]
+path = "shared/cgo/incus_bpf.h"
+sha256sum = "f2cddc5e22f9c0ccb66ac1476f386942be297c08416a89eda83535fbc34b1ae9"
+expression = "GPL-2.0-only WITH Linux-syscall-note"
+
+[[licensing.licenses]]
+path = "shared/cgo/incus_bpf_common.h"
+sha256sum = "7475540d7fb41f7da5987d78532403d47ee493aba277694df6fa9025b9a767aa"
+expression = "GPL-2.0-only WITH Linux-syscall-note"
+
+[[licensing.licenses]]
+path = "shared/tls/cert.go"
+sha256sum = "24dcbe048b154fbdd6a376bd3f8d06632e2f2dba91852b514c1d4cafb3650e0c"
+expression = "BSD-3-Clause"

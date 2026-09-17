@@ -1,0 +1,40 @@
+From 57c415871256445efa758086e6ef8111464b1c26 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?St=C3=A9phane=20Graber?= <stgraber@stgraber.org>
+Date: Fri, 24 Jul 2026 11:54:08 -0400
+Subject: [PATCH] incusd/instance: Enforce project restrictions on migration
+ overrides
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The migration handler applied user-supplied config, device and profile
+overrides without any project restriction check, letting a restricted
+project set keys like security.privileged or raw.lxc.
+
+This addresses CVE-2026-62940
+
+Signed-off-by: Stéphane Graber <stgraber@stgraber.org>
+---
+ cmd/incusd/instance_post.go | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/cmd/incusd/instance_post.go b/cmd/incusd/instance_post.go
+index fe02cbd2a66..9173109db56 100644
+--- a/cmd/incusd/instance_post.go
++++ b/cmd/incusd/instance_post.go
+@@ -647,6 +647,15 @@ func migrateInstance(ctx context.Context, s *state.State, inst instance.Instance
+ 		targetInstInfo.Profiles = req.Profiles
+ 	}
+ 
++	// Enforce project restrictions against the overridden config, as the migration
++	// request can otherwise set restricted keys (e.g. security.privileged, raw.lxc).
++	err = s.DB.Cluster.Transaction(ctx, func(ctx context.Context, tx *db.ClusterTx) error {
++		return project.AllowInstanceUpdate(tx, inst.Project().Name, inst.Name(), targetInstInfo.Writable(), inst.LocalConfig())
++	})
++	if err != nil {
++		return err
++	}
++
+ 	// Handle storage pool override.
+ 	if req.Pool != "" {
+ 		err := s.DB.Cluster.Transaction(ctx, func(ctx context.Context, tx *db.ClusterTx) error {

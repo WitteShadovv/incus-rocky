@@ -1,0 +1,43 @@
+From a89084e2de1548513d349c5305f509ed80d43240 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?St=C3=A9phane=20Graber?= <stgraber@stgraber.org>
+Date: Tue, 28 Jul 2026 12:31:15 -0400
+Subject: [PATCH] incusd/instance/qemu: Use os.Root for template output
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Matches the LXC driver, the existing checks already prevent escaping.
+
+Signed-off-by: Stéphane Graber <stgraber@stgraber.org>
+---
+ internal/server/instance/drivers/driver_qemu.go | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/internal/server/instance/drivers/driver_qemu.go b/internal/server/instance/drivers/driver_qemu.go
+index 3e3a53e1ff8..319c1c7d727 100644
+--- a/internal/server/instance/drivers/driver_qemu.go
++++ b/internal/server/instance/drivers/driver_qemu.go
+@@ -3777,6 +3777,14 @@ func (d *qemu) templateApplyNow(trigger instance.TemplateTrigger, path string) e
+ 		instanceMeta["ephemeral"] = "false"
+ 	}
+ 
++	// Open the output directory as an os.Root so all template writes stay confined to it.
++	outputRoot, err := os.OpenRoot(path)
++	if err != nil {
++		return fmt.Errorf("Failed to open template output path: %w", err)
++	}
++
++	defer logger.WarnOnError(outputRoot.Close, "Failed to close template output path")
++
+ 	// Go through the templates.
+ 	for tplPath, tpl := range metadata.Templates {
+ 		err = func(tplPath string, tpl *api.ImageMetadataTemplate) error {
+@@ -3813,7 +3821,7 @@ func (d *qemu) templateApplyNow(trigger instance.TemplateTrigger, path string) e
+ 			}
+ 
+ 			// Create the file itself.
+-			w, err = os.Create(filepath.Join(path, fmt.Sprintf("%s.out", tpl.Template)))
++			w, err = outputRoot.Create(fmt.Sprintf("%s.out", tpl.Template))
+ 			if err != nil {
+ 				return err
+ 			}

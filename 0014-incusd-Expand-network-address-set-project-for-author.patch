@@ -1,0 +1,33 @@
+From f86f08bfcd36aae7e8f29e83e71e6767ddb3e077 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?St=C3=A9phane=20Graber?= <stgraber@stgraber.org>
+Date: Fri, 24 Jul 2026 15:40:41 -0400
+Subject: [PATCH] incusd: Expand network address set project for authorization
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The project expansion used for authorization had no branch for network
+address sets, so their access checks ran against the requested project
+rather than the effective one, letting a restricted project act on the
+default project's address sets.
+
+This addresses GHSA-6v6x-387m-rj4w (CVE pending)
+
+Signed-off-by: Stéphane Graber <stgraber@stgraber.org>
+---
+ cmd/incusd/daemon.go | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/cmd/incusd/daemon.go b/cmd/incusd/daemon.go
+index 62c15cf7f2d..09c3c258e0f 100644
+--- a/cmd/incusd/daemon.go
++++ b/cmd/incusd/daemon.go
+@@ -366,7 +366,7 @@ func allowPermission(objectType auth.ObjectType, entitlement auth.Entitlement, m
+ 				projectName = project.NetworkZoneProjectFromRecord(p)
+ 			} else if slices.Contains([]auth.ObjectType{auth.ObjectTypeImage, auth.ObjectTypeImageAlias}, objectType) {
+ 				projectName = project.ImageProjectFromRecord(p)
+-			} else if slices.Contains([]auth.ObjectType{auth.ObjectTypeNetwork, auth.ObjectTypeNetworkACL}, objectType) {
++			} else if slices.Contains([]auth.ObjectType{auth.ObjectTypeNetwork, auth.ObjectTypeNetworkACL, auth.ObjectTypeNetworkAddressSet}, objectType) {
+ 				projectName = project.NetworkProjectFromRecord(p)
+ 			}
+ 

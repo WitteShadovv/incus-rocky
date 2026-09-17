@@ -1,0 +1,40 @@
+From 9bc9f9ba5ab61fd5e6c9fa0f5e2440d4ce8495e5 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?St=C3=A9phane=20Graber?= <stgraber@stgraber.org>
+Date: Fri, 24 Jul 2026 11:52:19 -0400
+Subject: [PATCH] incusd/instances: Re-check restrictions after copy config
+ merge
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The source instance's config is merged into the request only after the
+initial project restriction check, letting a cross-project copy carry
+restricted keys into the target project. Re-check the merged config.
+
+This addresses CVE-2026-62941
+
+Signed-off-by: Stéphane Graber <stgraber@stgraber.org>
+---
+ cmd/incusd/instances_post.go | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/cmd/incusd/instances_post.go b/cmd/incusd/instances_post.go
+index 24f9fad5464..df6e3c2dff5 100644
+--- a/cmd/incusd/instances_post.go
++++ b/cmd/incusd/instances_post.go
+@@ -709,6 +709,15 @@ func createFromCopy(ctx context.Context, s *state.State, r *http.Request, projec
+ 		req.Devices[key] = value
+ 	}
+ 
++	// Re-check project restrictions against the fully merged config, as the source
++	// instance's config and devices (including restricted keys) are only merged in above.
++	err = s.DB.Cluster.Transaction(ctx, func(ctx context.Context, tx *db.ClusterTx) error {
++		return project.AllowInstanceCreation(tx, targetProject, *req)
++	})
++	if err != nil {
++		return response.SmartError(err)
++	}
++
+ 	if req.Stateful {
+ 		sourceName, _, _ := api.GetParentAndSnapshotName(source.Name())
+ 		if sourceName != req.Name {

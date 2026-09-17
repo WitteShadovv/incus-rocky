@@ -1,0 +1,91 @@
+name: Weekly LTS watch
+
+# Reports new 7.0.x releases, newer LTS series, upstream advisories missing from SECURITY.md, COPR drift,
+# golang updates that need a rebuild and COPR token expiry in one issue (label lts-watch).
+# See .github/scripts/lts-watch.sh.
+on:
+  schedule:
+    - cron: "23 5 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  copr-token:
+    name: COPR token expiry
+    if: github.ref == 'refs/heads/main' # environment copr only admits main
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment:
+      name: copr
+      deployment: false # only reads the secret; deployment history stays for real COPR submissions
+    permissions: {}
+    outputs:
+      days-left: ${{ steps.expiry.outputs.days-left }}
+    steps:
+      - name: Read expiration date from COPR_CONFIG
+        id: expiry
+        env:
+          COPR_CONFIG: ${{ secrets.COPR_CONFIG }}
+        run: |
+          set -euo pipefail
+          # copr-cli config from https://copr.fedorainfracloud.org/api/ has "# expiration date: YYYY-MM-DD"
+          exp=$(printf '%s\n' "$COPR_CONFIG" | sed -n '/^# expiration date:/{s/^# expiration date: *//;s/\r$//;p;q}')
+          if [ -z "$COPR_CONFIG" ]; then
+            days=missing
+          elif [ -z "$exp" ] || ! end=$(date -u -d "$exp" +%s 2>/dev/null); then
+            days=unknown
+          else
+            days=$(( (end - $(date -u -d 00:00 +%s)) / 86400 )) # whole days: 0 on the last valid day
+          fi
+          echo "COPR token days left: $days"
+          echo "days-left=$days" >> "$GITHUB_OUTPUT"
+
+  rocky-golang:
+    name: Rocky Linux golang
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions: {}
+    container: # same image as ci.yml, so Renovate keeps both digests in step
+      image: quay.io/rockylinux/rockylinux:10@sha256:827d37bc128288ccf160ee318bb3cb92d591164cb217e92f8bc61e3982ae1834
+    outputs:
+      version: ${{ steps.golang.outputs.version }}
+    steps:
+      - name: Find the newest golang in AppStream
+        id: golang
+        run: |
+          set -euo pipefail
+          v=$(dnf -q --repo appstream repoquery --latest-limit 1 --qf '%{version}-%{release}' golang)
+          echo "Newest golang: $v"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+  lts-watch:
+    name: LTS watch
+    needs: [copr-token, rocky-golang]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read # checkout
+      issues: write # create, update, comment on and close the lts-watch issue
+      pull-requests: read # find the open Renovate PR (label incus-lts)
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.ref }} # re-runs check out the branch head, not the original commit
+      - name: Check LTS status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          # 'unavailable' when the job failed, so the check warns; the token check is skipped on other branches.
+          COPR_TOKEN_DAYS_LEFT: >-
+            ${{ needs.copr-token.result != 'skipped' && (needs.copr-token.outputs.days-left || 'unavailable') || '' }}
+          ROCKY_GOLANG: ${{ needs.rocky-golang.outputs.version || 'unavailable' }}
+          # Runs dispatched from other branches only report (step summary) and leave the issue alone.
+          DRY_RUN: ${{ github.ref != 'refs/heads/main' && '1' || '' }}
+        run: .github/scripts/lts-watch.sh

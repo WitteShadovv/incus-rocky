@@ -1,0 +1,38 @@
+From 7135f0183d9dc0661d2e3eb36779bc2273545266 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?St=C3=A9phane=20Graber?= <stgraber@stgraber.org>
+Date: Fri, 24 Jul 2026 11:43:20 -0400
+Subject: [PATCH] incusd/storage: Confine backup.yaml write to instance root
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This addresses CVE-2026-63125
+
+Signed-off-by: Stéphane Graber <stgraber@stgraber.org>
+---
+ internal/server/storage/backend.go | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/internal/server/storage/backend.go b/internal/server/storage/backend.go
+index 677ba023d08..1efc0b28055 100644
+--- a/internal/server/storage/backend.go
++++ b/internal/server/storage/backend.go
+@@ -7216,9 +7216,17 @@ func (b *backend) UpdateInstanceBackupFile(inst instance.Instance, snapshots boo
+ 
+ 	// Update pool information in the backup.yaml file.
+ 	err = vol.MountTask(func(mountPath string, op *operations.Operation) error {
++		// Confine the write to the instance directory to avoid following image-planted symlinks.
++		root, err := os.OpenRoot(inst.Path())
++		if err != nil {
++			return err
++		}
++
++		defer func() { _ = root.Close() }()
++
+ 		// Write the YAML
+ 		path := filepath.Join(inst.Path(), "backup.yaml")
+-		f, err := os.Create(path)
++		f, err := root.OpenFile("backup.yaml", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o400)
+ 		if err != nil {
+ 			return fmt.Errorf("Failed to create file %q: %w", path, err)
+ 		}
