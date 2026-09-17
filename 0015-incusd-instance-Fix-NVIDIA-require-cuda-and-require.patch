@@ -1,0 +1,40 @@
+From 038fd13e82c107ed40cad7697eabe45f3395a0cf Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?St=C3=A9phane=20Graber?= <stgraber@stgraber.org>
+Date: Fri, 24 Jul 2026 12:20:05 -0400
+Subject: [PATCH] incusd/instance: Fix NVIDIA require.cuda and require.driver
+ handling
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The condition was inverted, so a configured value was silently dropped
+while an empty value wrote an empty environment variable. Only write the
+variable when a value is set.
+
+Signed-off-by: Stéphane Graber <stgraber@stgraber.org>
+---
+ internal/server/instance/drivers/driver_lxc.go | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/internal/server/instance/drivers/driver_lxc.go b/internal/server/instance/drivers/driver_lxc.go
+index 8b26df30d70..5e8ac77954c 100644
+--- a/internal/server/instance/drivers/driver_lxc.go
++++ b/internal/server/instance/drivers/driver_lxc.go
+@@ -1143,7 +1143,7 @@ func (d *lxc) initLXC(config bool) (*liblxc.Container, error) {
+ 		}
+ 
+ 		nvidiaRequireCuda := d.expandedConfig["nvidia.require.cuda"]
+-		if nvidiaRequireCuda == "" {
++		if nvidiaRequireCuda != "" {
+ 			err = lxcSetConfigItem(cc, "lxc.environment", fmt.Sprintf("\"NVIDIA_REQUIRE_CUDA=%s\"", nvidiaRequireCuda))
+ 			if err != nil {
+ 				return nil, err
+@@ -1151,7 +1151,7 @@ func (d *lxc) initLXC(config bool) (*liblxc.Container, error) {
+ 		}
+ 
+ 		nvidiaRequireDriver := d.expandedConfig["nvidia.require.driver"]
+-		if nvidiaRequireDriver == "" {
++		if nvidiaRequireDriver != "" {
+ 			err = lxcSetConfigItem(cc, "lxc.environment", fmt.Sprintf("\"NVIDIA_REQUIRE_DRIVER=%s\"", nvidiaRequireDriver))
+ 			if err != nil {
+ 				return nil, err

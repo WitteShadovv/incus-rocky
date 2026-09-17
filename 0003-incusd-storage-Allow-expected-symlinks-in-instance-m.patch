@@ -1,0 +1,41 @@
+From 001bd0657f9ea6d73368118a01c5248080f2bbef Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?St=C3=A9phane=20Graber?= <stgraber@stgraber.org>
+Date: Fri, 24 Jul 2026 21:59:18 -0400
+Subject: [PATCH] incusd/storage: Allow expected symlinks in instance metadata
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: Stéphane Graber <stgraber@stgraber.org>
+---
+ internal/server/storage/backend.go | 17 +++++++++++++++++
+ 1 file changed, 17 insertions(+)
+
+diff --git a/internal/server/storage/backend.go b/internal/server/storage/backend.go
+index dbc861a46d3..872ae3a446b 100644
+--- a/internal/server/storage/backend.go
++++ b/internal/server/storage/backend.go
+@@ -750,6 +750,23 @@ func stripMetadataLinks(instPath string) ([]string, error) {
+ 		}
+ 
+ 		if d.Type()&fs.ModeSymlink != 0 {
++			relPath, err := filepath.Rel(instPath, path)
++			if err != nil {
++				return err
++			}
++
++			// Allow the links Incus itself maintains.
++			if relPath == "qemu.nvram" || relPath == "config/lxd-agent" {
++				target, err := os.Readlink(path)
++				if err != nil {
++					return err
++				}
++
++				if !strings.Contains(target, "/") && target != "." && target != ".." {
++					return nil
++				}
++			}
++
+ 			err = os.Remove(path)
+ 			if err != nil {
+ 				return err

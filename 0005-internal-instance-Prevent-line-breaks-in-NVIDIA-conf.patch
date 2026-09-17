@@ -1,0 +1,63 @@
+From 4f847ad5ab34716efb723e3f46e3d72e472035de Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?St=C3=A9phane=20Graber?= <stgraber@stgraber.org>
+Date: Fri, 24 Jul 2026 11:39:16 -0400
+Subject: [PATCH] internal/instance: Prevent line breaks in NVIDIA config
+ values
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This addresses GHSA-m3j6-p3v3-qmjv (CVE pending)
+
+Signed-off-by: Stéphane Graber <stgraber@stgraber.org>
+---
+ internal/instance/config.go | 15 ++++++++++++---
+ 1 file changed, 12 insertions(+), 3 deletions(-)
+
+diff --git a/internal/instance/config.go b/internal/instance/config.go
+index 17fee0b867f..c1756853c63 100644
+--- a/internal/instance/config.go
++++ b/internal/instance/config.go
+@@ -18,6 +18,15 @@ func IsUserConfig(key string) bool {
+ 	return strings.HasPrefix(key, "user.")
+ }
+ 
++// isNvidiaConfigValue rejects line breaks that would allow injecting arbitrary directives into the generated LXC configuration.
++func isNvidiaConfigValue(value string) error {
++	if strings.ContainsAny(value, "\r\n") {
++		return errors.New("NVIDIA configuration values cannot contain line breaks")
++	}
++
++	return nil
++}
++
+ // ConfigVolatilePrefix indicates the prefix used for volatile config keys.
+ const ConfigVolatilePrefix = "volatile."
+ 
+@@ -755,7 +764,7 @@ var InstanceConfigKeysContainer = map[string]func(value string) error{
+ 	//  liveupdate: no
+ 	//  condition: container
+ 	//  shortdesc: What driver capabilities the instance needs
+-	"nvidia.driver.capabilities": validate.IsAny,
++	"nvidia.driver.capabilities": isNvidiaConfigValue,
+ 
+ 	// gendoc:generate(entity=instance, group=nvidia, key=nvidia.require.cuda)
+ 	// The specified version expression is used to set `libnvidia-container NVIDIA_REQUIRE_CUDA`.
+@@ -764,7 +773,7 @@ var InstanceConfigKeysContainer = map[string]func(value string) error{
+ 	//  liveupdate: no
+ 	//  condition: container
+ 	//  shortdesc: Required CUDA version
+-	"nvidia.require.cuda": validate.IsAny,
++	"nvidia.require.cuda": isNvidiaConfigValue,
+ 
+ 	// gendoc:generate(entity=instance, group=nvidia, key=nvidia.require.driver)
+ 	// The specified version expression is used to set `libnvidia-container NVIDIA_REQUIRE_DRIVER`.
+@@ -773,7 +782,7 @@ var InstanceConfigKeysContainer = map[string]func(value string) error{
+ 	//  liveupdate: no
+ 	//  condition: container
+ 	//  shortdesc: Required driver version
+-	"nvidia.require.driver": validate.IsAny,
++	"nvidia.require.driver": isNvidiaConfigValue,
+ 
+ 	// gendoc:generate(entity=instance, group=oci, key=oci.entrypoint)
+ 	// Override the entry point of an OCI container.

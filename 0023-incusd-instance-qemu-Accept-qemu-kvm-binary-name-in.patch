@@ -1,0 +1,33 @@
+From 41abfc72138420da1600920b18c592b398260800 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?St=C3=A9phane=20Graber?= <stgraber@stgraber.org>
+Date: Tue, 1 Sep 2026 16:01:29 -0400
+Subject: [PATCH] incusd/instance/qemu: Accept qemu-kvm binary name in PID
+ validation
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Closes #3936
+
+Signed-off-by: Stéphane Graber <stgraber@stgraber.org>
+---
+ internal/server/instance/drivers/driver_qemu.go | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/internal/server/instance/drivers/driver_qemu.go b/internal/server/instance/drivers/driver_qemu.go
+index e7de4c0eaf9..90b8abb0d45 100644
+--- a/internal/server/instance/drivers/driver_qemu.go
++++ b/internal/server/instance/drivers/driver_qemu.go
+@@ -6331,9 +6331,10 @@ func (d *qemu) pid() (int, error) {
+ 		return 0, nil // Process has gone.
+ 	}
+ 
+-	qemuSearchString := []byte("qemu-system")
++	// The QEMU binary name varies by distribution (e.g. qemu-kvm on EL systems).
++	isQemu := bytes.Contains(cmdLine, []byte("qemu-system")) || bytes.Contains(cmdLine, []byte("qemu-kvm"))
+ 	instUUID := []byte(d.localConfig["volatile.uuid"])
+-	if !bytes.Contains(cmdLine, qemuSearchString) || !bytes.Contains(cmdLine, instUUID) {
++	if !isQemu || !bytes.Contains(cmdLine, instUUID) {
+ 		return -1, errors.New("PID doesn't match the running process")
+ 	}
+ 

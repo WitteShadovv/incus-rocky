@@ -1,0 +1,22 @@
+From 1bddf9074df3fcdc76e65098be1688ecc50ae2ce Mon Sep 17 00:00:00 2001
+From: DongHoon Yoo <yoo@donghoon.net>
+Date: Tue, 11 Aug 2026 13:36:27 +0900
+Subject: [PATCH] incusd: Fix storage volume project expansion
+
+Signed-off-by: DongHoon Yoo <yoo@donghoon.net>
+---
+ cmd/incusd/daemon.go | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/cmd/incusd/daemon.go b/cmd/incusd/daemon.go
+index 4c5a1f37899..f4f11ab0837 100644
+--- a/cmd/incusd/daemon.go
++++ b/cmd/incusd/daemon.go
+@@ -361,7 +361,7 @@ func allowPermission(objectType auth.ObjectType, entitlement auth.Entitlement, m
+ 				return project.StorageBucketProjectFromRecord(p)
+ 			} else if objectType == auth.ObjectTypeStorageVolume {
+-				dbVolType, err := storagePools.VolumeTypeNameToDBType(muxVars[1])
++				dbVolType, err := storagePools.VolumeTypeNameToDBType(r.PathValue(muxVars[1]))
+ 				if err != nil {
+ 					return projectName
+ 				}

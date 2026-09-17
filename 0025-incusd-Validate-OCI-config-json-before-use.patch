@@ -1,0 +1,48 @@
+From a5cf022bcec7a49e1cdfe8e2e159561058434814 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?St=C3=A9phane=20Graber?= <stgraber@stgraber.org>
+Date: Fri, 28 Aug 2026 08:05:26 -0400
+Subject: [PATCH] incusd: Validate OCI config.json before use
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: Stéphane Graber <stgraber@stgraber.org>
+---
+ cmd/incusd/instance.go                         | 6 +++++-
+ internal/server/instance/drivers/driver_lxc.go | 6 +++++-
+ 2 files changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/cmd/incusd/instance.go b/cmd/incusd/instance.go
+index 4573e98964e..bb7197c3599 100644
+--- a/cmd/incusd/instance.go
++++ b/cmd/incusd/instance.go
+@@ -222,7 +222,11 @@ func instanceCreateFromImage(ctx context.Context, s *state.State, img *api.Image
+ 		var config ociSpecs.Spec
+ 		err = json.Unmarshal([]byte(data), &config)
+ 		if err != nil {
+-			return err
++			return fmt.Errorf("Failed parsing OCI config: %w", err)
++		}
++
++		if config.Process == nil {
++			return errors.New("Failed parsing OCI config: Missing process section")
+ 		}
+ 
+ 		// Unmount the instance.
+diff --git a/internal/server/instance/drivers/driver_lxc.go b/internal/server/instance/drivers/driver_lxc.go
+index 29467477490..4a260f1619c 100644
+--- a/internal/server/instance/drivers/driver_lxc.go
++++ b/internal/server/instance/drivers/driver_lxc.go
+@@ -2471,7 +2471,11 @@ func (d *lxc) startCommon() (string, []func() error, error) {
+ 		var config ociSpecs.Spec
+ 		err = json.Unmarshal([]byte(data), &config)
+ 		if err != nil {
+-			return "", nil, err
++			return "", nil, fmt.Errorf("Failed parsing OCI config: %w", err)
++		}
++
++		if config.Process == nil {
++			return "", nil, errors.New("Failed parsing OCI config: Missing process section")
+ 		}
+ 
+ 		// Mark the container as an OCI container if not already set.

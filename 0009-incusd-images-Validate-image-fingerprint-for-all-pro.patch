@@ -1,0 +1,65 @@
+From 3d7246efe5ec4dba476f95ec163eb4a165717863 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?St=C3=A9phane=20Graber?= <stgraber@stgraber.org>
+Date: Fri, 24 Jul 2026 11:47:49 -0400
+Subject: [PATCH] incusd/images: Validate image fingerprint for all protocols
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The fingerprint validation added for CVE-2026-48769 was only applied to
+the direct protocol. Validate it for all protocols and re-check after it
+is taken from the remote server's response.
+
+This addresses GHSA-p2v3-6wvc-cv3p (CVE pending)
+
+Signed-off-by: Stéphane Graber <stgraber@stgraber.org>
+---
+ cmd/incusd/daemon_images.go | 21 ++++++++++++++-------
+ 1 file changed, 14 insertions(+), 7 deletions(-)
+
+diff --git a/cmd/incusd/daemon_images.go b/cmd/incusd/daemon_images.go
+index 171f37d6168..0085d53a6da 100644
+--- a/cmd/incusd/daemon_images.go
++++ b/cmd/incusd/daemon_images.go
+@@ -9,6 +9,7 @@ import (
+ 	"net/http"
+ 	"os"
+ 	"path/filepath"
++	"regexp"
+ 	"slices"
+ 	"time"
+ 
+@@ -344,13 +345,12 @@ func imageDownload(ctx context.Context, r *http.Request, s *state.State, op *ope
+ 
+ 	logger.Info("Downloading image", ctxMap)
+ 
+-	// For the direct protocol the fingerprint is caller-controlled, so validate
+-	// it to avoid path traversal when used as a file name.
+-	if protocol == "direct" {
+-		err = validate.IsSHA256(fp)
+-		if err != nil {
+-			return nil, false, errors.New("Invalid image fingerprint")
+-		}
++	// The fingerprint is used as a file name, so reject anything that isn't a
++	// partial or full hex fingerprint to avoid path traversal. It's re-validated
++	// as a full SHA-256 once expanded from the remote below.
++	match, _ := regexp.MatchString("^[0-9a-f]{1,64}$", fp)
++	if !match {
++		return nil, false, errors.New("Invalid image fingerprint")
+ 	}
+ 
+ 	// Cleanup any leftover from a past attempt
+@@ -620,6 +620,13 @@ func imageDownload(ctx context.Context, r *http.Request, s *state.State, op *ope
+ 	// Image is in the DB now, don't wipe on-disk files on failure
+ 	failure = false
+ 
++	// Re-validate the fingerprint as it may have been updated from the remote
++	// server's response, and it is used as a file name below.
++	err = validate.IsSHA256(fp)
++	if err != nil {
++		return nil, false, errors.New("Invalid image fingerprint")
++	}
++
+ 	// Check if the image path changed (private images)
+ 	newDestName := filepath.Join(destDir, fp)
+ 	if newDestName != destName {

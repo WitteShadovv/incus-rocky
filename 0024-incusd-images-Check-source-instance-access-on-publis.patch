@@ -1,0 +1,35 @@
+From 8ce2d877c9181da1c6288d411eb75575f4cc3ed2 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?St=C3=A9phane=20Graber?= <stgraber@stgraber.org>
+Date: Sat, 29 Aug 2026 19:15:05 -0400
+Subject: [PATCH] incusd/images: Check source instance access on publish
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Publishing an image only required can_create_images on the project,
+letting a caller read an instance they otherwise can't view.
+
+Signed-off-by: Stéphane Graber <stgraber@stgraber.org>
+---
+ cmd/incusd/images.go | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/cmd/incusd/images.go b/cmd/incusd/images.go
+index afc17d4a7df..278bcc7a7d6 100644
+--- a/cmd/incusd/images.go
++++ b/cmd/incusd/images.go
+@@ -1308,6 +1308,14 @@ func imagesPost(d *Daemon, r *http.Request) response.Response {
+ 	if !imageUpload && slices.Contains([]string{"container", "instance", "virtual-machine", "snapshot"}, req.Source.Type) {
+ 		name := req.Source.Name
+ 		if name != "" {
++			// Check that the caller is allowed to view the source instance.
++			instName, _, _ := api.GetParentAndSnapshotName(name)
++			err = s.Authorizer.CheckPermission(r.Context(), r, auth.ObjectInstance(projectName, instName), auth.EntitlementCanView)
++			if err != nil {
++				cleanup(builddir, post)
++				return response.SmartError(err)
++			}
++
+ 			_, err = post.Seek(0, io.SeekStart)
+ 			if err != nil {
+ 				return response.InternalError(err)

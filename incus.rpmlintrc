@@ -1,0 +1,17 @@
+# Incus sources (including vendored sources) have duplicate files
+addFilter(r"incus-debugsource\.\S+: E: files-duplicated-waste")
+# Permissions required by Incus (https://discuss.linuxcontainers.org/t/18520/4)
+addFilter(r"incus\.\S+: E: non-standard-dir-perm /var/cache/incus 700")
+addFilter(r"incus\.\S+: E: non-standard-dir-perm /var/log/incus 700")
+addFilter(r"incus\.\S+: E: non-standard-dir-perm /var/lib/incus 711")
+addFilter(r"incus\.\S+: E: non-standard-dir-perm /run/incus 711")
+# %tmpfiles_create_package is used in %pre
+addFilter(r"incus\.\S+: W: post-without-tmpfile-creation /usr/lib/tmpfiles.d/incus.conf")
+# incus-agent (runs inside guests) and incus-migrate (runs on arbitrary source machines) are
+# intentionally CGO-free static binaries, like upstream's release binaries
+addFilter(r"incus-(agent|tools)\.\S+: E: statically-linked-binary /usr/bin/incus-(agent|migrate)")
+addFilter(r"incus-(agent|tools)\.\S+: W: position-independent-executable-suggested /usr/bin/incus-(agent|migrate)")
+# Project/tool names and technical terms
+addFilter(r"incus-tools\.\S+: E: spelling-error \('(unmap|uids|gids|simplestreams|lxc|lxd)'")
+# incusd truncates/rotates its own per-instance logs
+addFilter(r"incus\.\S+: W: log-files-without-logrotate")

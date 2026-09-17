@@ -1,0 +1,196 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    # Only packaging changes are published; everything else was already checked in its PR.
+    paths:
+      - "incus*"
+      - "*.patch"
+      - "*.asc"
+      - "!incus.rpmlintrc"
+  workflow_dispatch:
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash # container jobs would otherwise use sh
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  pre-commit:
+    name: pre-commit
+    # Third-party hook code never runs in a run that publishes (it could replace the srpm artifact).
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read # checkout
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run pre-commit
+        env:
+          GH_TOKEN: ${{ github.token }} # zizmor online audits (impostor-commit, known-vulnerable-actions)
+        run: pipx run pre-commit==4.6.2 run --all-files --show-diff-on-failure --color=always
+
+  srpm:
+    name: SRPM
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read # checkout
+    container:
+      image: quay.io/rockylinux/rockylinux:10@sha256:827d37bc128288ccf160ee318bb3cb92d591164cb217e92f8bc61e3982ae1834
+    env:
+      LC_ALL: C.UTF-8
+    steps:
+      - name: Install tooling
+        run: |
+          dnf -y install epel-release
+          dnf -y install git-core rpm-build rpmdevtools rpmautospec
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # rpmautospec needs full history
+          persist-credentials: false
+      - name: Build SRPM
+        run: |
+          set -euo pipefail
+          # Container runs as root, workspace is owned by the runner UID: without this,
+          # rpmautospec (pygit2) SILENTLY falls back to release 1 + "Uncommitted changes".
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          test "$(git rev-parse --is-shallow-repository)" = false
+          spectool --get-files --directory "$GITHUB_WORKSPACE" incus.spec
+          rpmautospec process-distgit incus.spec "$RUNNER_TEMP/incus.spec"
+          if grep -q -e '- Uncommitted changes' "$RUNNER_TEMP/incus.spec"; then
+            echo "::error::rpmautospec could not read git history"; exit 1
+          fi
+          rpmbuild -bs "$RUNNER_TEMP/incus.spec" \
+            --define "_sourcedir $GITHUB_WORKSPACE" \
+            --define "_srcrpmdir $GITHUB_WORKSPACE/srpm"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: srpm
+          path: srpm/*.src.rpm
+          if-no-files-found: error
+
+  rpm:
+    name: RPM (${{ matrix.arch }})
+    needs: srpm
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 150
+    permissions:
+      contents: read # checkout (spec, rpmlintrc)
+    container:
+      image: quay.io/rockylinux/rockylinux:10@sha256:827d37bc128288ccf160ee318bb3cb92d591164cb217e92f8bc61e3982ae1834
+      options: --privileged
+    env:
+      LC_ALL: C.UTF-8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: srpm
+          path: srpm
+      - name: Install mock + rpmlint
+        run: |
+          dnf -y install epel-release
+          dnf -y install mock rpmlint glibc-langpack-en
+      - name: mock build
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          mock -r "rocky+epel-10-${ARCH}" --isolation=simple --no-bootstrap-image \
+            --resultdir results --rebuild srpm/*.src.rpm
+      - name: rpmlint
+        run: rpmlint --rpmlintrc incus.rpmlintrc results/*.rpm # mock copies the SRPM into results/
+      - name: Install check
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          rpms=()
+          for f in results/*.rpm; do
+            case "$f" in *.src.rpm|*-debuginfo-*|*-debugsource-*) ;; *) rpms+=("./$f") ;; esac
+          done
+          # EPEL only (no CRB) is what end users get by default
+          dnf -y install --setopt=install_weak_deps=True "${rpms[@]}"
+          incus --version
+          /usr/libexec/incus/incusd --version
+          incus-agent --version
+          # One assertion per line: bash -e ignores failures inside && lists.
+          rpm -q --provides incus | grep '^bundled(raft) = '
+          rpm -q --provides incus | grep '^bundled(cowsql) = '
+          rpm -q --provides incus-client | grep '^bundled(golang(golang.org/x/sys)) = '
+          if readelf -d /usr/libexec/incus/incusd | grep -qE 'NEEDED.*lib(cowsql|raft)'; then exit 1; fi
+          if readelf -l /usr/bin/incus-agent | grep -q INTERP; then exit 1; fi
+          getent group incus-admin
+          getent passwd incus
+          # upgrades must not restart incus.socket: that would stop every instance via incus-startup
+          rpm -q --scripts incus | grep -F 'mark-restart-system-units incus.service incus-user.service ||'
+          grep -x 'root:1000000000:1000000000' /etc/subuid
+          grep -x 'root:1000000000:1000000000' /etc/subgid
+          rpm -q qemu-kvm-core qemu-kvm-device-display-virtio-gpu-pci virtiofsd swtpm xorriso fuse
+          if [ "$ARCH" = x86_64 ]; then
+            rpm -q edk2-ovmf qemu-kvm-device-display-virtio-vga
+            grep -q '^Environment=INCUS_EDK2_PATH=/usr/share/edk2/ovmf$' /usr/lib/systemd/system/incus.service
+            test -e /usr/share/edk2/ovmf/OVMF_CODE.fd
+            test -e /usr/share/edk2/ovmf/OVMF_CODE.secboot.fd
+          else
+            rpm -q edk2-aarch64
+            if grep -q INCUS_EDK2_PATH /usr/lib/systemd/system/incus.service; then exit 1; fi
+            test -e /usr/share/AAVMF/AAVMF_CODE.fd
+            test -e /usr/share/AAVMF/AAVMF_VARS.fd
+          fi
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rpms-${{ matrix.arch }}
+          path: results/
+          if-no-files-found: warn
+
+  copr:
+    name: Submit to COPR
+    needs: [srpm, rpm]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360 # GitHub-hosted maximum; COPR allows 5 h of build time plus queue time
+    environment: copr
+    permissions: {}
+    container:
+      image: quay.io/rockylinux/rockylinux:10@sha256:827d37bc128288ccf160ee318bb3cb92d591164cb217e92f8bc61e3982ae1834
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: srpm
+          path: srpm
+      - name: Install copr-cli
+        run: |
+          dnf -y install epel-release
+          # copr-cli -> python3-rich -> python3-pygments, which is only in CRB
+          dnf -y --enablerepo=crb install copr-cli
+      - name: Build in COPR
+        env:
+          COPR_CONFIG: ${{ secrets.COPR_CONFIG }}
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s\n' "$COPR_CONFIG" > "$RUNNER_TEMP/copr"
+          copr-cli --config "$RUNNER_TEMP/copr" whoami
+          copr-cli --config "$RUNNER_TEMP/copr" build witteshadovv/incus-lts srpm/*.src.rpm

@@ -1,0 +1,53 @@
+From 181ae5c746c718767e8ca6f3edbe3df4a6fc9fbe Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?St=C3=A9phane=20Graber?= <stgraber@stgraber.org>
+Date: Fri, 24 Jul 2026 11:45:40 -0400
+Subject: [PATCH] incusd/instance/qemu: Confine template access to instance
+ root
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The template traversal guard from CVE-2026-48752 was only applied to the
+LXC driver. Apply the same checks to the QEMU driver.
+
+This addresses GHSA-4qxq-p5hm-3q3p (CVE pending)
+
+Signed-off-by: Stéphane Graber <stgraber@stgraber.org>
+---
+ .../server/instance/drivers/driver_qemu.go    | 23 +++++++++++++++++++
+ 1 file changed, 23 insertions(+)
+
+diff --git a/internal/server/instance/drivers/driver_qemu.go b/internal/server/instance/drivers/driver_qemu.go
+index 42815df1978..3e3a53e1ff8 100644
+--- a/internal/server/instance/drivers/driver_qemu.go
++++ b/internal/server/instance/drivers/driver_qemu.go
+@@ -3789,6 +3789,29 @@ func (d *qemu) templateApplyNow(trigger instance.TemplateTrigger, path string) e
+ 				return nil
+ 			}
+ 
++			// Perform some early security checks on the template itself.
++			if filepath.Base(tpl.Template) != tpl.Template {
++				return errors.New("Template path is attempting to read outside of template directory")
++			}
++
++			tplDirStat, err := os.Lstat(d.TemplatesPath())
++			if err != nil {
++				return fmt.Errorf("Couldn't access template directory: %w", err)
++			}
++
++			if !tplDirStat.IsDir() {
++				return errors.New("Template directory isn't a regular directory")
++			}
++
++			tplFileStat, err := os.Lstat(filepath.Join(d.TemplatesPath(), tpl.Template))
++			if err != nil {
++				return fmt.Errorf("Couldn't access template file: %w", err)
++			}
++
++			if tplFileStat.Mode()&os.ModeSymlink == os.ModeSymlink {
++				return errors.New("Template file is a symlink")
++			}
++
+ 			// Create the file itself.
+ 			w, err = os.Create(filepath.Join(path, fmt.Sprintf("%s.out", tpl.Template)))
+ 			if err != nil {
