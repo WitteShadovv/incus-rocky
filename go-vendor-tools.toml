@@ -22,11 +22,6 @@ sha256sum = "ad1e64b82c04fb2ee6bfe521bff01266971ffaa70500024d4ac767c6033aafb9"
 expression = "BSD-3-Clause"
 
 [[licensing.licenses]]
-path = "vendor/gopkg.in/yaml.v3/LICENSE"
-sha256sum = "d18f6323b71b0b768bb5e9616e36da390fbd39369a81807cca352de4e4e6aa0b"
-expression = "MIT AND Apache-2.0"
-
-[[licensing.licenses]]
 path = "vendor/go.yaml.in/yaml/v3/LICENSE"
 sha256sum = "d18f6323b71b0b768bb5e9616e36da390fbd39369a81807cca352de4e4e6aa0b"
 expression = "MIT AND Apache-2.0"
@@ -75,5 +70,5 @@ expression = "GPL-2.0-only WITH Linux-syscall-note"
 
 [[licensing.licenses]]
 path = "shared/tls/cert.go"
-sha256sum = "24dcbe048b154fbdd6a376bd3f8d06632e2f2dba91852b514c1d4cafb3650e0c"
+sha256sum = "e7f8e40b5c4af5a23d45d2f20860e9a2fb22addfa78e96f0bcd1fc6d05115e0d"
 expression = "BSD-3-Clause"

@@ -71,8 +71,8 @@ Renovate opens "Update Incus LTS to 7.0.N" two days after the upstream release. 
 step 1 or 4, and on step 3 only if Rocky Linux's golang is older than `go.mod`; steps 2, 5 and 6 are
 not checked:
 
-1. **Patches**: drop every patch the release already contains. All current `Patch0001`-`Patch0027`
-   come from `stable-7.0`; check each with `git merge-base --is-ancestor <commit> v7.0.N` in an
+1. **Patches**: drop every patch the release already contains. Patches are backports from
+   `stable-7.0`; check each with `git merge-base --is-ancestor <commit> v7.0.N` in an
    `lxc/incus` clone. `%autosetup` applies patches with fuzz 0, so a leftover patch fails loudly.
 2. **Bundled libraries**: update `bundled_raft_version` / `bundled_cowsql_version` and the comments
    above them: version from `AC_INIT` in `vendor/<lib>/configure.ac`, commit from `vendor/<lib>/.gitref`,
